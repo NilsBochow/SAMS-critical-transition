@@ -11,6 +11,8 @@ import netCDF4 as nc4
 For this script, there are some files needed: 
 precip_all_years_lat_lon : A file with spatial daily precipitation for all years. For the paper, we use the freely available ERA5 precipitation.
 climatological_mean: A file with the climatological mean of the precipitation or can be calculated from the precip_all_years_lat_lon variable
+
+These functions can be used (with slight modifications) for one site/area (Fig. 5B) or for spatial analysis as shown in the SI. 
 """
 
 
