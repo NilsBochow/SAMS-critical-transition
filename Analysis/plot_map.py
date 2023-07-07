@@ -6,7 +6,7 @@ from scipy import stats
 import matplotlib
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.patches import PathPatch
-
+from scipy.optimize import curve_fit
 from matplotlib.ticker import FormatStrFormatter
 import matplotlib.ticker as ticker
 from matplotlib.colors import LinearSegmentedColormap
@@ -15,11 +15,11 @@ import os
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
 # Since Basemap is deprecated, you probably have to set the PROJ_LIB variable manually before loading basemap, replace $HOME with the directory where you have the proj folder
-os.environ['PROJ_LIB'] = r'$HOME/anaconda3/pkgs/proj4-5.2.0-he6710b0_1/share/proj/'
+os.environ['PROJ_LIB'] = r'/home/nils/anaconda3/pkgs/proj4-5.2.0-he6710b0_1/share/proj/'
 from mpl_toolkits.basemap import Basemap, maskoceans
 
 """
-Script for creating a map like Fig. 6. 
+Script for creating the maps in Fig. 6 and Fig. 5A. 
 
 The data in the folder files_map are taken from ERA5.
 Hersbach, H., Bell, B., Berrisford, P., Biavati, G., Horányi, A., Muñoz Sabater, J., Nicolas, J., Peubey, C., Radu, R., Rozum, I., Schepers, D., Simmons, A., Soci, C., Dee, D., Thépaut, J-N. (2023): ERA5 monthly averaged data on single levels from 1940 to present. Copernicus Climate Change Service (C3S) Climate Data Store (CDS), DOI: 10.24381/cds.f17050d7 
@@ -159,3 +159,66 @@ plot_map(kendall_ar1, "autocorrelation", 1, hatched =True )
 
 kendall_variance = np.load(directory + "kendall_variance.npy")
 plot_map(kendall_variance, "variance", 1, hatched =True )
+
+
+
+def lin(x, p0, p1):
+   return p1 + p0 * x
+
+
+def fit_linear(array):
+    popt = np.zeros((2, array.shape[1], array.shape[2])) 
+    for i in range(array.shape[1]):
+        for j in range(array.shape[2]): 
+            popt1, pcov1 = curve_fit(lin, np.arange(40), array[:, i, j], absolute_sigma = True, p0 =[-2, 800], maxfev = 1000) 
+            popt[:, i, j] = popt1
+    return popt
+
+
+soil_yearly = np.load(directory + "soil_yearly.npy")
+
+
+def map_soil_gradient(gradient_popt): 
+    """
+    Plot and save Fig. 5A.
+    """
+    size = 24
+    plt.rcParams['font.size'] = 24
+    plt.rcParams['axes.linewidth'] = 4
+    plt.rcParams['axes.labelsize'] = 24
+    plt.rcParams['axes.labelweight'] = 'bold'
+    plt.rcParams['font.weight'] = 'bold'
+    trend = gradient_popt[0, :, :]
+
+    fig     = plt.figure(figsize=(12.0, 9.0))
+    ax      = fig.add_subplot(111)
+    m = Basemap(epsg = '3395', llcrnrlat=-30,urcrnrlat=15,llcrnrlon=-85,urcrnrlon=-30)
+    lons, lats = np.meshgrid(lon, lat)
+    x,y = m(lons, lats)
+    trend_masked = maskoceans(lons, lats, trend)
+    
+    contour = m.contourf(x, y, trend_masked ,levels = np.linspace(-6,6,13), cmap = 'RdBu', extend = 'both', latlon= False)
+
+    m.drawcoastlines(linewidth=4)
+    divider = make_axes_locatable(ax)
+
+    
+    m.drawmapscale(-40,-27.5, -40, -0, 500, linewidth=6, fontsize=18)
+    cax = fig.add_axes([0.2, 0.05, 0.6, 0.03])
+    cbar = fig.colorbar(contour, cax =cax, orientation = "horizontal", ticks=ticker.LinearLocator(5))
+    
+    cbar.set_label('Trend soil moisture [kg/(m²yr)]', size =size)
+    cbar.ax.tick_params(labelsize=size)
+    ax.spines['top'].set_visible(False)
+    cbar.ax.tick_params(labelsize=size, size=8, width=4)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    
+
+    plt.savefig(directory + 'soil_map.pdf', transparent=True, bbox_inches='tight')
+    
+    
+gradient_popt = fit_linear(soil_yearly)
+
+map_soil_gradient(gradient_popt)
