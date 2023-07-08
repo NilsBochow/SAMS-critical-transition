@@ -1,3 +1,4 @@
 *.jld
 Model/KDE/
 Model/saved_variables/
+*.nc
