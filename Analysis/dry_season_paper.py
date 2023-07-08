@@ -72,8 +72,10 @@ def calculate_DSL_anomaly(year):
     """
     precip_one_year = precip_all_years_lat_lon[year]
     precip_mean = mean_area_precip(precip_one_year, lat_min=lat_min, lat_max=lat_max, lon_min=lon_min, lon_max=lon_max)
-    pads_number = 370-precip_mean.shape[0]
-    
+    if precip_mean.shape[0]>365:
+        pads_number = 370-precip_mean.shape[0]
+    else: 
+        pads_number = 0
     rolling_precip = np.nanmean(np.pad(precip_mean, pads_number, mode = "constant", constant_values = np.nan)[pads_number:].reshape(-1,5), axis = 1)
     anomaly = rainfall_anomaly(rolling_precip)
     rainfall_anomaly_cum = np.cumsum(anomaly, axis = 0)
@@ -280,8 +282,8 @@ def calculate_all_methods(years):
 
 
 # Example for 2 years of precipitation
-data1  = nc4.Dataset(directory + "2008.nc")["tprate"][:]
-data2 =  nc4.Dataset(directory + "2009.nc")["tprate"][:]
+data1  = nc4.Dataset(directory + "2008.nc")["tprate"][1::,:,:] #this example data has a 1 day padding in the beginning
+data2 =  nc4.Dataset(directory + "2009.nc")["tprate"][1::,:,:] 
 precip_all_years_lat_lon = np.zeros(2, dtype = 'object')
 precip_all_years_lat_lon[0] = data1
 precip_all_years_lat_lon[1] = data2
@@ -298,7 +300,6 @@ Method 1 returns the DSL in days while the other two methods return it in pentad
 """
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
-
 ax1.plot(DSL[0]/5, lw = 2, label = "Method 1")
 ax1.plot(DSL[1], lw = 2, label= "Method 2")
 ax1.plot(DSL[2], lw = 2, label = "Method 3")
