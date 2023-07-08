@@ -13,13 +13,13 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Polygon
 import os 
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
-
+import netCDF4 as nc4 
 # Since Basemap is deprecated, you probably have to set the PROJ_LIB variable manually before loading basemap, replace $HOME with the directory where you have the proj folder
 os.environ['PROJ_LIB'] = r'/home/nils/anaconda3/pkgs/proj4-5.2.0-he6710b0_1/share/proj/'
 from mpl_toolkits.basemap import Basemap, maskoceans
 
 """
-Script for creating the maps in Fig. 6 and Fig. 5A. 
+Script for creating the maps in Fig. 6 and Fig. 5A. Also example for the SI map with GPCP precipitation is included. 
 
 The data in the folder files_map are taken from ERA5.
 Hersbach, H., Bell, B., Berrisford, P., Biavati, G., Horányi, A., Muñoz Sabater, J., Nicolas, J., Peubey, C., Radu, R., Rozum, I., Schepers, D., Simmons, A., Soci, C., Dee, D., Thépaut, J-N. (2023): ERA5 monthly averaged data on single levels from 1940 to present. Copernicus Climate Change Service (C3S) Climate Data Store (CDS), DOI: 10.24381/cds.f17050d7 
@@ -153,12 +153,106 @@ def plot_map(gradient_popt, array_string, levels_max, hatched):
 
     plt.savefig(directory + array_string + '_map_precip.pdf', bbox_inches='tight')
 
+
 kendall_ar1 = np.load(directory + "kendall_ar1.npy")
 plot_map(kendall_ar1, "autocorrelation", 1, hatched =True )
 
 
 kendall_variance = np.load(directory + "kendall_variance.npy")
 plot_map(kendall_variance, "variance", 1, hatched =True )
+
+# GPCP example
+def plot_map_GPCP(gradient_popt, array_string, levels_max, hatched):
+
+    plt.rcParams['font.size'] = 18
+    plt.rcParams['axes.linewidth'] = 3
+    plt.rcParams['axes.labelsize'] = 18
+    plt.rcParams['axes.labelweight'] = 'bold'
+    plt.rcParams['font.weight'] = 'bold'
+    
+    
+    size = 14
+    trend = gradient_popt[:, :]
+
+    #trend2 = np.reshape(trend, (la_chirps*lo_chirps))
+    #print(np.sum(trend2[area_indices]>0), trend2[area_indices].size, np.sum(np.isnan(trend2[area_indices])))
+    #fig     = plt.figure(figsize=(13.0, 10.0))
+    fig     = plt.figure(figsize=(7, 6.0))
+    ax      = fig.add_subplot(111)
+
+
+    #m = Basemap(epsg = '3395', llcrnrlat=-30,urcrnrlat=15,llcrnrlon=-85,urcrnrlon=-30)
+    m = Basemap(epsg = '3395', llcrnrlat=-20,urcrnrlat=10,llcrnrlon=-80,urcrnrlon=-40)
+    draw_screen_poly( [-12.5,-12.5,-4,-4], [-72.5, -62.5,-62.5, -72.5], m )
+    lons, lats = np.meshgrid(lon, lat)
+    lons_bigger, lats_bigger = np.meshgrid(lon_bigger, lat_bigger)
+    x,y = m(lons, lats)
+    xx, yy = m(lons_bigger, lats_bigger)
+    #### new ####
+
+    v_wind = (np.load(directory + "v_wind_djf_mean.npy"))
+    u_wind = (np.load(directory + "u_wind_djf_mean.npy"))
+
+
+    v_wind = maskoceans(lons_bigger, lats_bigger, v_wind)
+    u_wind = maskoceans(lons_bigger, lats_bigger, u_wind)
+    m.quiver(xx[::10, ::10], yy[::10, ::10], u_wind[::10, ::10], v_wind[::10, ::10], scale = 80, zorder=2, lw = 3, color = "white", alpha = 1)
+    ####
+
+    trend_masked = maskoceans(lons, lats, trend)
+    print(trend_masked, lons, lats)
+    condition = (trend_masked>0)
+    lons_hatched, lats_hatched = np.meshgrid(lon, lat)
+    x_hatch,y_hatch = m(lons_hatched, lats_hatched)
+    if hatched == True: 
+        if array_string == "autocorrelation": 
+            hatch_area = np.load(directory_GPCP +"GPCP/ar_p_value.npy")
+            hatch_area = np.ma.masked_greater(hatch_area, 0.05)
+            hatch_area = maskoceans(lons_hatched, lats_hatched, hatch_area)
+        else:
+            hatch_area = np.load(directory_GPCP +"GPCP/variance_p_value.npy")
+            hatch_area = np.ma.masked_greater(hatch_area, 0.05)
+            hatch_area = maskoceans(lons_hatched, lats_hatched, hatch_area)
+            
+
+    
+    contour = m.pcolor(x, y, trend_masked , cmap = 'coolwarm', latlon= False, vmin=-1, vmax=1)
+
+    m.drawcoastlines(linewidth = 3)
+
+    m.drawmapscale(-46,-17, -35, -0, 500, linewidth=3, fontsize=12)
+    
+
+    
+    
+    if hatched == True:
+        m.pcolor(x, y, hatch_area, hatch='..', alpha=0.)
+    divider = make_axes_locatable(ax)
+
+    cax = fig.add_axes([0.2, 0.05, 0.6, 0.03])
+
+    cbar = fig.colorbar(contour, cax =cax, orientation = "horizontal", ticks=ticker.LinearLocator(5))
+    
+    if array_string == "autocorrelation":
+        cbar.set_label(r'Kendall $\tau$ '+ array_string + ' of P', size =size)
+    else: 
+        cbar.set_label(r'Kendall $\tau$ '+ array_string + ' of P', size =size)
+    cbar.ax.tick_params(labelsize=size, size=6, width=3)
+
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    plt.savefig(directory + array_string + '_map_precip_GPCP.pdf', bbox_inches='tight')
+    
+
+directory_GPCP = dir_path = os.path.dirname(os.path.realpath(__file__)) + "/statistics_example/"
+lat = nc4.Dataset(directory_GPCP +"GPCP/subset_SouthAmerica.nc")["lat"][:]
+lon = - (360 - nc4.Dataset(directory_GPCP +"GPCP/subset_SouthAmerica.nc")["lon"][:])
+popt_ar1 = np.load(directory_GPCP +"GPCP/popt_ar1.npy") 
+
+plot_map_GPCP(popt_ar1, "autocorrelation",  1, hatched =True)
 
 
 
